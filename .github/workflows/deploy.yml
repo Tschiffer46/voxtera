@@ -1,0 +1,119 @@
+name: Deploy to Hetzner
+
+# Trigger on push to main branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ─────────────────────────────────────────
+      # 1. Checkout the repository
+      # ─────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────
+      # 2. Set up Node.js
+      # ─────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+
+      # ─────────────────────────────────────────
+      # 3. Build the client (React → static files)
+      # ─────────────────────────────────────────
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build client
+        working-directory: client
+        run: npm run build
+        env:
+          # Production API URL — served via nginx proxy
+          VITE_API_URL: /api
+
+      # ─────────────────────────────────────────
+      # 4. Build the server (TypeScript → JavaScript)
+      # ─────────────────────────────────────────
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Build server
+        working-directory: server
+        run: npm run build
+
+      # ─────────────────────────────────────────
+      # 5. Set up SSH key for deployment
+      # ─────────────────────────────────────────
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      # ─────────────────────────────────────────
+      # 6. Deploy via rsync to Hetzner VPS
+      #    Syncs the built files to the server
+      # ─────────────────────────────────────────
+      - name: Deploy client build
+        run: |
+          rsync -avz --delete \
+            client/dist/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/voxtera/client/dist/
+
+      - name: Deploy server build
+        run: |
+          rsync -avz --delete \
+            server/dist/ \
+            server/package.json \
+            server/package-lock.json \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/voxtera/server/
+
+      - name: Deploy Docker Compose config
+        run: |
+          rsync -avz \
+            docker-compose.prod.yml \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/voxtera/
+
+      # ─────────────────────────────────────────
+      # 7. Restart services on the server
+      #    Installs production dependencies and
+      #    restarts via Docker Compose
+      # ─────────────────────────────────────────
+      - name: Restart server on Hetzner
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+            set -e
+            cd /opt/voxtera
+
+            # Install production server dependencies
+            cd server && npm ci --omit=dev && cd ..
+
+            # Restart services using Docker Compose
+            docker compose -f docker-compose.prod.yml up -d --force-recreate server client
+
+            echo "Deployment complete!"
+          EOF
+
+      # ─────────────────────────────────────────
+      # 8. Clean up SSH key
+      # ─────────────────────────────────────────
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_rsa

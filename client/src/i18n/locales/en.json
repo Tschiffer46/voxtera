@@ -1,0 +1,81 @@
+{
+  "app": {
+    "name": "Voxtera",
+    "tagline": "Every voice matters, grounded in transparency"
+  },
+  "nav": {
+    "survey": "Survey",
+    "dashboard": "Dashboard",
+    "admin": "Admin"
+  },
+  "survey": {
+    "title": "Employee Survey",
+    "loading": "Loading survey...",
+    "notFound": "Survey not found or no longer active.",
+    "selectTeam": "Before we start, please select your team",
+    "selectTeamPlaceholder": "Select your team or department",
+    "startSurvey": "Start Survey",
+    "question": "Question {{current}} of {{total}}",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "submitting": "Submitting...",
+    "complete": {
+      "title": "Thank you!",
+      "message": "Your response has been recorded anonymously. Your feedback helps us improve.",
+      "cta": "Your voice matters."
+    },
+    "rating": {
+      "label": "Select a rating"
+    },
+    "enps": {
+      "label": "Select a score"
+    },
+    "openText": {
+      "placeholder": "Share your thoughts..."
+    }
+  },
+  "dashboard": {
+    "title": "Management Dashboard",
+    "loading": "Loading dashboard...",
+    "selectCompany": "Select a company to view results",
+    "overview": {
+      "title": "Overview",
+      "responseRate": "Response Rate",
+      "totalResponses": "Total Responses",
+      "averageScore": "Average Score",
+      "enpsScore": "eNPS Score",
+      "areasOfConcern": "Areas of Concern"
+    },
+    "actions": {
+      "title": "Actions",
+      "new": "New Action",
+      "concernArea": "Concern Area",
+      "description": "Description",
+      "responsible": "Responsible Person",
+      "deadline": "Deadline",
+      "status": {
+        "planned": "Planned",
+        "in_progress": "In Progress",
+        "done": "Done"
+      }
+    }
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "companies": "Companies",
+    "surveys": "Surveys",
+    "generateLink": "Generate Survey Link",
+    "responsRates": "Response Rates"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong. Please try again.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "notFound": "Page not found"
+  }
+}
