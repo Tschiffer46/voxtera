@@ -75,7 +75,15 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       # ─────────────────────────────────────────
-      # 6. Deploy via rsync to Hetzner VPS
+      # 6. Ensure destination directories exist
+      # ─────────────────────────────────────────
+      - name: Create deployment directories on server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "mkdir -p /opt/voxtera/client/dist /opt/voxtera/server"
+
+      # ─────────────────────────────────────────
+      # 7. Deploy via rsync to Hetzner VPS
       #    Syncs the built files to the server
       # ─────────────────────────────────────────
       - name: Deploy client build
@@ -84,14 +92,6 @@ jobs:
             -e "ssh -i ~/.ssh/id_ed25519" \
             client/dist/ \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/client/dist/
-
-      # ─────────────────────────────────────────
-      # 6a. Ensure destination directories exist
-      # ─────────────────────────────────────────
-      - name: Create deployment directories on server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "mkdir -p /opt/voxtera/client/dist /opt/voxtera/server"
 
       - name: Deploy server build
         run: |
@@ -110,9 +110,8 @@ jobs:
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/
 
       # ─────────────────────────────────────────
-      # 7. Restart services on the server
-      #    Installs production dependencies and
-      #    restarts via Docker Compose
+      # 8. Restart services on the server
+      #    Restarts via Docker Compose
       # ─────────────────────────────────────────
       - name: Restart server on Hetzner
         run: |
@@ -120,17 +119,17 @@ jobs:
             set -e
             cd /opt/voxtera
 
-            # Install production server dependencies
-            cd server && npm ci --omit=dev && cd ..
+            # Start db separately without force-recreate to avoid unnecessary restarts
+            docker compose -f docker-compose.prod.yml up -d db
 
-            # Restart services using Docker Compose
+            # Force-recreate only the app containers
             docker compose -f docker-compose.prod.yml up -d --force-recreate server client
 
             echo "Deployment complete!"
           EOF
 
       # ─────────────────────────────────────────
-      # 8. Clean up SSH key
+      # 9. Clean up SSH key
       # ─────────────────────────────────────────
       - name: Clean up SSH key
         if: always()
