@@ -83,7 +83,7 @@ jobs:
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/id_ed25519" \
             client/dist/ \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/hosting/sites/voxtera/client/dist/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/client/dist/
 
       - name: Deploy server build
         run: |
@@ -92,14 +92,14 @@ jobs:
             server/dist/ \
             server/package.json \
             server/package-lock.json \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/hosting/sites/voxtera/server/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/server/
 
       - name: Deploy Docker Compose config
         run: |
           rsync -avz \
             -e "ssh -i ~/.ssh/id_ed25519" \
             docker-compose.prod.yml \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/hosting/sites/voxtera/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/
 
       # ─────────────────────────────────────────
       # 7. Restart services on the server
@@ -110,13 +110,13 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
+            cd /opt/voxtera
 
             # Install production server dependencies
-            cd ~/hosting/sites/voxtera/server && npm ci --omit=dev
+            cd server && npm ci --omit=dev && cd ..
 
-            # Restart containers using master docker-compose
-            cd ~/hosting
-            docker compose restart voxtera-server voxtera-client
+            # Restart services using Docker Compose
+            docker compose -f docker-compose.prod.yml up -d --force-recreate server client
 
             echo "Deployment complete!"
           EOF
