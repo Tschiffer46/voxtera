@@ -1,3 +1,10 @@
+# Required GitHub Secrets (same names used across all ATM AB deployments):
+#   SERVER_HOST     - IP address or hostname of the Hetzner server
+#   SERVER_USER     - SSH username (deploy)
+#   SERVER_SSH_KEY  - Private SSH key content for authentication
+#
+# To add secrets: GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+
 name: Deploy to Hetzner
 
 # Trigger on push to main branch
@@ -63,9 +70,9 @@ jobs:
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       # ─────────────────────────────────────────
       # 6. Deploy via rsync to Hetzner VPS
@@ -74,22 +81,25 @@ jobs:
       - name: Deploy client build
         run: |
           rsync -avz --delete \
+            -e "ssh -i ~/.ssh/id_ed25519" \
             client/dist/ \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/voxtera/client/dist/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/client/dist/
 
       - name: Deploy server build
         run: |
           rsync -avz --delete \
+            -e "ssh -i ~/.ssh/id_ed25519" \
             server/dist/ \
             server/package.json \
             server/package-lock.json \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/voxtera/server/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/server/
 
       - name: Deploy Docker Compose config
         run: |
           rsync -avz \
+            -e "ssh -i ~/.ssh/id_ed25519" \
             docker-compose.prod.yml \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/voxtera/
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/voxtera/
 
       # ─────────────────────────────────────────
       # 7. Restart services on the server
@@ -98,7 +108,7 @@ jobs:
       # ─────────────────────────────────────────
       - name: Restart server on Hetzner
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
             cd /opt/voxtera
 
@@ -116,4 +126,4 @@ jobs:
       # ─────────────────────────────────────────
       - name: Clean up SSH key
         if: always()
-        run: rm -f ~/.ssh/id_rsa
+        run: rm -f ~/.ssh/id_ed25519
