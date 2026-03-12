@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { rateLimit } from 'express-rate-limit';
 import { requestLogger, errorHandler } from './middleware/index.js';
@@ -7,6 +9,8 @@ import surveyRoutes from './routes/surveys.js';
 import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
 import pool from './db/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config();
 
@@ -64,9 +68,18 @@ app.use('/api/surveys', surveySubmitLimiter); // Extra limit on survey submit pa
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 
-// 404 handler
-app.use((_req, res) => {
+// API 404 handler — only for /api/* routes
+app.all('/api/*', (_req, res) => {
   res.status(404).json({ error: 'Not found' });
+});
+
+// Serve client static files (production only)
+const publicDir = path.join(__dirname, '..', 'public');
+app.use(express.static(publicDir));
+
+// SPA fallback — serve index.html for all non-API routes
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 // Error handler (must be last)
