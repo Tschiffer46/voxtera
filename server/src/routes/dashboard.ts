@@ -371,4 +371,27 @@ router.patch('/actions/:actionId', async (req: Request, res: Response): Promise<
   }
 });
 
+/**
+ * GET /api/dashboard/companies/:companyId/surveys/:surveyId/responses-timeline
+ * Daily response counts for a chart.
+ */
+router.get('/companies/:companyId/surveys/:surveyId/responses-timeline', async (req: Request, res: Response): Promise<void> => {
+  const { surveyId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT DATE(completed_at) as date, COUNT(*) as count
+       FROM responses
+       WHERE survey_id = $1 AND completed_at IS NOT NULL
+       GROUP BY DATE(completed_at)
+       ORDER BY date`,
+      [surveyId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching responses timeline:', err);
+    res.status(500).json({ error: 'Failed to fetch responses timeline' });
+  }
+});
+
 export default router;

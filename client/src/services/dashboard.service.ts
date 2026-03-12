@@ -84,3 +84,18 @@ export async function updateAction(
   const response = await api.patch(`/dashboard/actions/${actionId}`, data);
   return response.data;
 }
+
+export interface TimelineEntry {
+  date: string;
+  count: number;
+}
+
+export async function getResponsesTimeline(
+  companyId: number,
+  surveyId: number
+): Promise<TimelineEntry[]> {
+  const response = await api.get<TimelineEntry[]>(
+    `/dashboard/companies/${companyId}/surveys/${surveyId}/responses-timeline`
+  );
+  return response.data;
+}

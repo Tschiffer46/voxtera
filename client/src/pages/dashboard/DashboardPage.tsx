@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { PageWrapper } from '../../components/PageWrapper';
-import { getCompanies, getCompanyOverview, type Company, type DashboardOverview } from '../../services/dashboard.service';
+import {
+  getCompanies,
+  getCompanyOverview,
+  getResponsesTimeline,
+  type Company,
+  type DashboardOverview,
+  type TimelineEntry,
+} from '../../services/dashboard.service';
 
 export default function DashboardPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
@@ -24,10 +33,24 @@ export default function DashboardPage() {
     if (!selectedCompanyId) return;
     setOverviewLoading(true);
     getCompanyOverview(selectedCompanyId)
-      .then(setOverview)
-      .catch(() => setOverview(null))
+      .then((data) => {
+        setOverview(data);
+        // Fetch timeline data for the survey
+        if (data?.survey?.id) {
+          return getResponsesTimeline(selectedCompanyId, data.survey.id);
+        }
+        return [];
+      })
+      .then((timelineData) => setTimeline(timelineData ?? []))
+      .catch(() => { setOverview(null); setTimeline([]); })
       .finally(() => setOverviewLoading(false));
   }, [selectedCompanyId]);
+
+  // Format dates for the chart
+  const chartData = timeline.map((entry) => ({
+    date: new Date(entry.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    count: Number(entry.count),
+  }));
 
   return (
     <PageWrapper variant="dashboard" className="bg-gray-50">
@@ -113,12 +136,32 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* Placeholder for charts — Phase 3 */}
+            {/* Responses Over Time Chart */}
             <div className="card">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Detailed Results</h2>
-              <p className="text-gray-400 text-sm">
-                Detailed charts and drill-down analysis will be available in Phase 3.
-              </p>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Responses Over Time</h2>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                      }}
+                      formatter={(value) => [`${value} responses`, 'Count']}
+                    />
+                    <Bar dataKey="count" fill="#4A90D9" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-gray-400 text-sm py-8 text-center">
+                  No response data yet. Responses will appear here as employees complete the survey.
+                </p>
+              )}
             </div>
           </div>
         ) : (

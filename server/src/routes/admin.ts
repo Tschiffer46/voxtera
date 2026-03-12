@@ -83,6 +83,33 @@ router.get('/companies/:companyId/surveys', async (req: Request, res: Response):
   }
 });
 
+// ── Survey Links ────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/surveys/:surveyId/links
+ * List all survey links with response counts.
+ */
+router.get('/surveys/:surveyId/links', async (req: Request, res: Response): Promise<void> => {
+  const { surveyId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT sl.id, sl.token, sl.is_active, sl.created_at,
+              COUNT(DISTINCT r.id) FILTER (WHERE r.completed_at IS NOT NULL) as response_count
+       FROM survey_links sl
+       LEFT JOIN responses r ON r.survey_link_id = sl.id
+       WHERE sl.survey_id = $1
+       GROUP BY sl.id
+       ORDER BY sl.created_at DESC`,
+      [surveyId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error listing survey links:', err);
+    res.status(500).json({ error: 'Failed to list survey links' });
+  }
+});
+
 /**
  * POST /api/admin/surveys/:surveyId/links
  * Generate a new anonymous survey link.
@@ -106,6 +133,132 @@ router.post('/surveys/:surveyId/links', async (req: Request, res: Response): Pro
   } catch (err) {
     console.error('Error creating survey link:', err);
     res.status(500).json({ error: 'Failed to create survey link' });
+  }
+});
+
+// ── Questions CRUD ──────────────────────────────────────────────
+
+/**
+ * GET /api/admin/surveys/:surveyId/questions
+ * List all questions for a survey.
+ */
+router.get('/surveys/:surveyId/questions', async (req: Request, res: Response): Promise<void> => {
+  const { surveyId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT id, text, type, order_position, required, config
+       FROM questions
+       WHERE survey_id = $1
+       ORDER BY order_position`,
+      [surveyId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error listing questions:', err);
+    res.status(500).json({ error: 'Failed to list questions' });
+  }
+});
+
+/**
+ * POST /api/admin/surveys/:surveyId/questions
+ * Create a new question.
+ */
+router.post('/surveys/:surveyId/questions', async (req: Request, res: Response): Promise<void> => {
+  const { surveyId } = req.params;
+  const { text, type, required, config } = req.body as {
+    text: string;
+    type: string;
+    required?: boolean;
+    config?: Record<string, unknown>;
+  };
+
+  if (!text || !type) {
+    res.status(400).json({ error: 'text and type are required' });
+    return;
+  }
+
+  try {
+    // Get the next order position
+    const posResult = await pool.query(
+      `SELECT COALESCE(MAX(order_position), 0) + 1 as next_pos FROM questions WHERE survey_id = $1`,
+      [surveyId]
+    );
+    const nextPos = posResult.rows[0].next_pos;
+
+    const result = await pool.query(
+      `INSERT INTO questions (survey_id, text, type, order_position, required, config)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, text, type, order_position, required, config`,
+      [surveyId, text, type, nextPos, required ?? true, JSON.stringify(config ?? {})]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating question:', err);
+    res.status(500).json({ error: 'Failed to create question' });
+  }
+});
+
+/**
+ * PUT /api/admin/questions/:questionId
+ * Update a question.
+ */
+router.put('/questions/:questionId', async (req: Request, res: Response): Promise<void> => {
+  const { questionId } = req.params;
+  const { text, type, required, config } = req.body as {
+    text?: string;
+    type?: string;
+    required?: boolean;
+    config?: Record<string, unknown>;
+  };
+
+  try {
+    const result = await pool.query(
+      `UPDATE questions SET
+         text = COALESCE($1, text),
+         type = COALESCE($2, type),
+         required = COALESCE($3, required),
+         config = COALESCE($4, config)
+       WHERE id = $5
+       RETURNING id, text, type, order_position, required, config`,
+      [text ?? null, type ?? null, required ?? null, config ? JSON.stringify(config) : null, questionId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Question not found' });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating question:', err);
+    res.status(500).json({ error: 'Failed to update question' });
+  }
+});
+
+/**
+ * DELETE /api/admin/questions/:questionId
+ * Delete a question.
+ */
+router.delete('/questions/:questionId', async (req: Request, res: Response): Promise<void> => {
+  const { questionId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM questions WHERE id = $1 RETURNING id`,
+      [questionId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Question not found' });
+      return;
+    }
+
+    res.json({ deleted: true });
+  } catch (err) {
+    console.error('Error deleting question:', err);
+    res.status(500).json({ error: 'Failed to delete question' });
   }
 });
 
